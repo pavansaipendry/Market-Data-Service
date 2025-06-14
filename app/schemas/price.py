@@ -1,5 +1,3 @@
-# app/schemas/price.py
-
 from pydantic import BaseModel
 from datetime import datetime
 

@@ -2,7 +2,7 @@ import json
 import logging
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)     # explicitly allow DEBUG for this logger
+logger.setLevel(logging.DEBUG)
 
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -22,8 +22,6 @@ from ..services.scheduler import add_poll_job
 router = APIRouter(prefix="/prices", tags=["prices"])
 finnhub_provider = FinnhubProvider()
 
-# configure logger for this module
-
 @router.get("/latest", response_model=PriceResponse)
 def get_latest_price(
     symbol: str,
@@ -33,11 +31,9 @@ def get_latest_price(
     ),
     db: Session = Depends(get_db),
 ):
-    # 1) Log Redis INFO
     info = redis_client.info()
     logger.debug("Redis INFO run_id=%s tcp_port=%s", info.get('run_id'), info.get('tcp_port'))
 
-    # 2) Log connection settings
     conn = redis_client.connection_pool.connection_kwargs
     logger.debug("Redis in use: host=%s port=%s db=%s", conn.get('host'), conn.get('port'), conn.get('db'))
 
@@ -45,21 +41,16 @@ def get_latest_price(
     cache_key = make_cache_key(symbol, source)
     logger.debug("Looking up cache key: %s", cache_key)
 
-    # 3) Try cache
     cached = redis_client.get(cache_key)
     if cached:
         logger.info("Cache HIT for key: %s", cache_key)
         data = json.loads(cached)         
-        # return json.loads(cached)
     else:
         logger.info("Cache MISS for key: %s, fetching from provider...", cache_key)
-
-        # 4) Cache miss → fetch from external
         try:
             data = finnhub_provider.get_latest_price(symbol)
             data["provider"] = source
 
-            # ensure timestamp is datetime
             if not isinstance(data["timestamp"], datetime):
                 try:
                     data["timestamp"] = datetime.strptime(data["timestamp"], "%Y-%m-%d %H:%M:%S")
@@ -74,7 +65,6 @@ def get_latest_price(
             logger.error("Error fetching from Finnhub: %s", e)
             raise HTTPException(status_code=502, detail="Error fetching from Finnhub")
 
-    # 5) Persist raw response
     raw = RawResponse(
         symbol    = data["symbol"],
         price     = data["price"],
@@ -87,7 +77,6 @@ def get_latest_price(
 
     logger.debug("Persisted raw response with timestamp: %s", data["timestamp"])
 
-    # 6) Publish to Kafka
     publish_price_event({
         "symbol":          data["symbol"],
         "price":           data["price"],
@@ -96,7 +85,6 @@ def get_latest_price(
         "raw_response_id": raw.id,
     })
 
-    # 7) Prime the cache for 30s
     logger.debug("Setting cache key: %s", cache_key)
     redis_client.set(cache_key, json.dumps(data), ex=30)
     logger.info("Cache SET complete for key: %s", cache_key)
@@ -118,7 +106,7 @@ def create_poll_job(
     - persists the symbols, interval, provider
     - returns a job_id + accepted status + config
     """
-    # 1. Create and persist the job
+
     job = PollJob(
         symbols   = req.symbols,
         interval  = req.interval,
@@ -129,10 +117,8 @@ def create_poll_job(
     db.commit()
     db.refresh(job)
 
-    # 2. Schedule it in APScheduler
     add_poll_job(job.id, job.interval)
 
-    # 3. Return response
     return PollJobResponse(
         job_id = job.id,
         status = job.status,

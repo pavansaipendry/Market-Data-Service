@@ -7,14 +7,12 @@ This module sets up the SQLAlchemy database engine and session factory,
 and provides a dependency function for FastAPI to inject database sessions.
 """
 
-# Create the SQLAlchemy engine using our DATABASE_URL
 engine = create_engine(
     settings.database_url,
-    echo=True,            # logs all SQL for debugging
-    future=True           # use SQLAlchemy 2.0 style
+    echo=True,          
+    future=True        
 )
 
-# Create a configured "Session" class
 SessionLocal = sessionmaker(
     bind=engine,
     autocommit=False,
@@ -22,7 +20,6 @@ SessionLocal = sessionmaker(
     future=True
 )
 
-# Dependency function for FastAPI to get a DB session per request
 def get_db():
     """
     FastAPI dependency that yields a database session for each request.

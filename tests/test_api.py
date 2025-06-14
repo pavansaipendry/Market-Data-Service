@@ -32,7 +32,7 @@ def test_get_latest_price_ok(client):
     assert resp.status_code == 200
 
     data = resp.json()
-    # Validate against the Pydantic schema
+
     parsed = PriceResponse(**data)
     assert parsed.symbol == "FOO"
     assert parsed.price == 123.45

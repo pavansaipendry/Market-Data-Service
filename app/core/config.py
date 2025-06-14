@@ -1,5 +1,3 @@
-# app/core/config.py
-
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -11,8 +9,6 @@ class Settings(BaseSettings):
     finnhub_api_key: str
     database_url: str
     kafka_bootstrap_servers: str
-
-    # Redis-cacheing
     database_url: str
     redis_host: str = "localhost"
     redis_port: int = 6379
@@ -20,5 +16,4 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
 
-# Instantiating this reads .env immediately
 settings = Settings()

@@ -15,4 +15,4 @@ def test_create_poll_job(client):
     assert parsed.config.symbols == ["AAPL","MSFT"]
     assert parsed.config.interval == 30
     assert parsed.status == "accepted"
-    assert parsed.job_id  # must be a non-empty UUID string
+    assert parsed.job_id

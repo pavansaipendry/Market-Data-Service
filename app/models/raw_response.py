@@ -1,10 +1,7 @@
-# app/models/raw_response.py
-
 import uuid
 from sqlalchemy import Column, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 
-# Base class for all ORM models
 Base = declarative_base()
 
 class RawResponse(Base):

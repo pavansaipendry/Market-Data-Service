@@ -1,5 +1,3 @@
-# app/main.py
-
 import uvicorn
 import logging
 from fastapi import FastAPI
@@ -12,7 +10,7 @@ from .core.dependencies import engine, SessionLocal
 from .services.scheduler import start_scheduler, add_poll_job
 
 logging.basicConfig(
-    level=logging.DEBUG,  # show DEBUG, INFO, WARNING, ERROR, CRITICAL
+    level=logging.DEBUG,
     format="%(asctime)s %(name)s [%(levelname)s] %(message)s",
 )
 
@@ -29,15 +27,12 @@ def on_startup():
     - Re-schedules previously accepted poll jobs.
     """
 
-    # 1. Create all tables
     RawBase.metadata.create_all(bind=engine)
     AvgBase.metadata.create_all(bind=engine)
     PollJobBase.metadata.create_all(bind=engine)
 
-    # 2. Start APScheduler
     start_scheduler()
 
-    # 3. (Re-)schedule any existing “accepted” jobs
     db: Session = SessionLocal()
     try:
         active_jobs = db.query(PollJob).filter(PollJob.status == "accepted").all()

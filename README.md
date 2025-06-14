@@ -1,15 +1,19 @@
-# Market Data Service
+## Market Data Service
 
 ## Overview
+
 The **Market Data Service** is a microservice designed to:
 
-- Fetch real-time market data from Finnhub.
-- Publish price updates to a Kafka topic.
-- Compute 5-point moving averages via a Kafka consumer.
-- Persist raw and processed data in PostgreSQL.
-- Expose RESTful APIs using FastAPI.
+* Fetch real-time market data from Finnhub.
+* Cache recent price lookups in Redis to reduce API calls.
+* Publish price updates to a Kafka topic.
+* Compute 5-point moving averages via a Kafka consumer.
+* Persist raw and processed data in PostgreSQL.
+* Manage on-demand and scheduled polling jobs.
+* Expose RESTful APIs using FastAPI, with structured logging.
 
 ## Table of Contents
+
 1. Architecture
 2. Folder Structure
 3. Setup Instructions
@@ -21,113 +25,113 @@ The **Market Data Service** is a microservice designed to:
 
 ## Architecture
 
-
 ### Components
-- **FastAPI App**: Serves RESTful endpoints.
-- **Finnhub Provider**: Fetches stock quotes.
-- **Kafka Producer**: Publishes price events to the `price-events` topic.
-- **Kafka Consumer**: Calculates 5-point moving averages and stores them.
-- **PostgreSQL**: Stores raw responses, polling job configs, and averages.
-- **Scheduler**: Manages background polling jobs.
-- **Docker Compose**: Orchestrates Postgres, Zookeeper, Kafka, and Adminer.
 
-### Sequence Diagram
-```sequence
-Client->>FastAPI: GET /prices/latest
-FastAPI->>Finnhub: Fetch quote
-Finnhub-->>FastAPI: Return price
-FastAPI->>PostgreSQL: Store raw data
-FastAPI->>Kafka: Publish price-event
-Kafka->>Consumer: Deliver price-event
-Consumer->>PostgreSQL: Store moving average
-FastAPI-->>Client: Respond JSON
-```
+* **FastAPI App**:
+
+  * `/prices/latest`: returns cached or freshly fetched quotes.
+  * `/prices/poll`: schedules recurring polls.
+* **Redis Cache**:
+
+  * Stores price responses for 30 seconds by default to minimize external calls.
+* **Finnhub Provider**: Fetches stock quotes when cache misses.
+* **Kafka Producer**: Publishes price events to the `price-events` topic.
+* **Kafka Consumer**:
+
+  * Subscribes to `price-events`.
+  * Calculates 5-point moving averages.
+  * Writes averages back to PostgreSQL.
+* **PostgreSQL**:
+
+  * `raw_response` table for every quote.
+  * `symbol_averages` table for computed moving averages.
+  * `poll_jobs` table for scheduled polling configurations.
+* **Scheduler**:
+
+  * On startup, re-schedules accepted poll jobs via APScheduler.
+  * Supports dynamic job creation via API.
+* **Logging**:
+
+  * Structured, leveled logs via Python’s `logging` and Uvicorn debug.
+
+### Architecture Sequence Diagram
+
+![Sequence Diagram](docs/sequence-diagram.png)
 
 ## Folder Structure
+
 ```
 market-data-service/
 ├── app/
-│   ├── api/             # API routes (prices.py, poll_job.py)
-│   ├── core/            # Config and DI (config.py, dependencies.py)
+│   ├── api/             # FastAPI routes (prices.py,poll_job.py)
+│   ├── core/            # Config, DI, cache setup (config.py, cache.py, dependencies.py)
 │   ├── models/          # SQLAlchemy ORM models
-│   ├── schemas/         # Pydantic schemas
+│   ├── schemas/         # Pydantic request/response models
 │   ├── services/        # Business logic (provider, producer, consumer, scheduler)
 │   └── main.py          # FastAPI application entrypoint
-├── tests/               # Pytest unit and integration tests
-├── docker-compose.yml   # Infrastructure (Postgres, Kafka, Zookeeper, Adminer)
-├── requirements.txt     # Python dependencies
+├── tests/               # Pytest unit & integration tests
+├── docker-compose.yml   # Postgres, Zookeeper, Kafka, Redis, Adminer
+├── requirements.txt     # Python dependencies (including pre-commit, flake8, pytest)
 └── .env                 # Environment variables
 ```
 
-
-
 ## Setup Instructions
 
-1. **Clone the repository**
+1. **Clone the repo**
 
-   ```
-   git clone <repo-url>
+   ```bash
+   git clone <https://github.com/pavansaipendry/Market-Data-Service.git>
    cd market-data-service
    ```
 
-2. **Create and activate a virtual environment**
+2. **Create & activate virtualenv**
 
-   ```
+   ```bash
    python3 -m venv .venv
    source .venv/bin/activate
    ```
 
-3. **Install Python dependencies**
+3. **Install dependencies**
 
-   ```
+   ```bash
    pip install -r requirements.txt
    ```
 
 4. **Configure environment variables**
+   Create a `.env` file in the project root:
 
-   * Create a file named `.env` in the project root.
-   * Add the following:
-
-     ```
-     FINNHUB_API_KEY=API_KEY
-     DATABASE_URL=postgresql://postgres:postgres@db:5432/marketdb
-     KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-     ```
+   ```
+   FINNHUB_API_KEY=your_api_key
+   DATABASE_URL=postgresql://postgres:postgres@db:5432/marketdb
+   REDIS_HOST=redis
+   REDIS_PORT=6379
+   KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+   ```
 
 ## Running the Service
 
-### 1. Start the infrastructure
 
-```
-docker-compose up -d
-```
+### Launch FastAPI app
 
-* **PostgreSQL**: `localhost:5432`
-* **Zookeeper**: `localhost:2181`
-* **Kafka**: `localhost:9092`
-* **Adminer**: `localhost:8080`
-
-### 2. Launch the FastAPI app
-
-```
+```bash
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-uvicorn app.main:app --reload --port 8001
+uvicorn app.main:app --reload --port 8000 --log-level debug
 ```
 
-The API is available at `http://localhost:8001`.
+The API is now available at `http://localhost:8000`.
 
 ## API Documentation
 
 ### GET `/prices/latest?symbol={symbol}`
 
-Fetch the latest price for a given stock symbol.
+Fetch the latest (cached or live) price for a stock symbol.
 
-* **Query Parameters**:
+* **Query Parameters**
 
-  * `symbol` (string, required): e.g., `AAPL`, `MSFT`.
-* **Response** (`200 OK`):
+  * `symbol` (string, required): ticker (e.g., `AAPL`, `MSFT`).
+* **Response** (`200 OK`)
 
-  ```
+  ```json
   {
     "symbol": "AAPL",
     "price": 172.5,
@@ -135,31 +139,31 @@ Fetch the latest price for a given stock symbol.
     "provider": "finnhub"
   }
   ```
-* **Errors**:
+* **Errors**
 
-  * `502 Bad Gateway` if the external API call fails.
+  * `502 Bad Gateway`: external API failure.
 
 ### POST `/prices/poll`
 
-Start a polling job for one or more symbols.
+Create a new polling job.
 
-* **Request Body**:
+* **Request Body**
 
-  ```
+  ```json
   {
-    "symbols": ["AAPL", "MSFT"],
+    "symbols": ["AAPL","MSFT"],
     "interval": 60,
     "provider": "finnhub"
   }
   ```
-* **Response** (`202 Accepted`):
+* **Response** (`202 Accepted`)
 
-  ```
+  ```json
   {
-    "job_id": "poll_123",
+    "job_id": "uuid-string",
     "status": "accepted",
     "config": {
-      "symbols": ["AAPL", "MSFT"],
+      "symbols": ["AAPL","MSFT"],
       "interval": 60
     }
   }
@@ -167,34 +171,50 @@ Start a polling job for one or more symbols.
 
 ## Testing
 
-Run all tests with:
-```
-pytest tests/ -W ignore
+Run all tests (unit + integration):
+
+```bash
+pytest tests/ -W ignore::DeprecationWarning
 ```
 
-Key test files:
+* **Key test modules**
 
-* `test_api.py`: tests for `/prices/latest`
-* `test_poll_api.py`: tests for polling endpoint
-* `test_consumer.py`: tests for moving-average consumer
+  * `test_api.py`: `/prices/latest`
+  * `test_poll_api.py`: `/prices/poll`
+  * `test_consumer.py`: moving-average logic
+
+* **Lint & formatting**
+
+  ```bash
+  flake8 .
+  black --check .
+  pre-commit run --all-files
+  ```
 
 ## Troubleshooting
 
-* **Port conflicts**:
+* **Port conflicts**
 
-  ```
+  ```bash
   lsof -i :8001
   kill -9 <PID>
   ```
-* **Module import errors**: Ensure each `app/` subdirectory contains an `__init__.py` file.
-* **Kafka topic missing**: Confirm `price-events` exists or enable auto-creation in Kafka.
+* **Import errors**
+
+  * Ensure each `app/` dir has `__init__.py`.
+  * Verify `PYTHONPATH` includes project root.
+* **Redis key not found**
+
+  * Confirm host/port match your `.env`.
+  * Use `redis-cli -h localhost -p 6379 -n 0 KEYS 'price:*'`.
+* **Kafka topic missing**
+
+  * Enable auto topic creation, or create `price-events` manually.
 
 ## Future Enhancements
 
-* Integrate Swagger/OpenAPI UI.
-* Add Redis caching for hot prices.
-* Implement Prometheus/Grafana monitoring dashboards.
-* Deploy to AWS ECS/Fargate or Heroku.
-
-
-
+* **Metrics & Monitoring**: Prometheus + Grafana dashboards.
+* **Authentication**: API key or OAuth protection.
+* **Autoscaling**: Deploy to Kubernetes or AWS ECS/Fargate.
+* **Retry & backoff**: Robust error handling in the consumer.
+* **API versioning**: Prepare `/v1` namespace for breaking changes.`
