@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+.venv/*
+market_data_service.egg-info/*
+.DS_Store
+.env
