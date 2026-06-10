@@ -8,8 +8,9 @@ class Settings(BaseSettings):
     """
     finnhub_api_key: str
     database_url: str
-    kafka_bootstrap_servers: str
+    kafka_bootstrap_servers: str = ""
     database_url: str
+    redis_url: str = ""
     redis_host: str = "localhost"
     redis_port: int = 6379
 
