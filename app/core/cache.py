@@ -9,12 +9,15 @@ logger.setLevel(logging.DEBUG)
 
 logger.debug(f"[cache] Connecting to Redis @ {settings.redis_host}:{settings.redis_port}, db=0")
 
-redis_client = redis.Redis(
-    host=settings.redis_host,
-    port=settings.redis_port,
-    db=0,
-    decode_responses=True,
-)
+if settings.redis_url:
+    redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+else:
+    redis_client = redis.Redis(
+        host=settings.redis_host,
+        port=settings.redis_port,
+        db=0,
+        decode_responses=True,
+    )
 
 def make_cache_key(symbol: str, provider: str) -> str:
     """

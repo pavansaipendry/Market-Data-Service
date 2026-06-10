@@ -8,8 +8,8 @@ and provides a dependency function for FastAPI to inject database sessions.
 """
 
 engine = create_engine(
-    settings.database_url,
-    echo=True,          
+    settings.database_url.replace("postgres://", "postgresql://", 1),
+    echo=False,          
     future=True        
 )
 

@@ -5,10 +5,11 @@ pydantic
 python-dotenv
 finnhub-python
 confluent-kafka
-psycopg2
+psycopg2-binary
 apscheduler
 pytest
 httpx
 pytest-asyncio
 pre-commit
 redis
+pydantic-settings
